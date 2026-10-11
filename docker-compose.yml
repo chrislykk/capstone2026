@@ -1,0 +1,47 @@
+# HRS capstone: local MySQL for development
+# Start:  docker compose up -d
+# Stop:   docker compose down        (data is kept)
+# Reset:  docker compose down -v     (DELETES all data)
+
+services:
+  db:
+    image: mysql:8.0.46
+    container_name: hrs-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-hrs_root_pw}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-hrs}
+      MYSQL_USER: ${MYSQL_USER:-hrs_user}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-hrs_pw}
+      TZ: America/Phoenix
+    # Case-insensitive table names so schemas behave the same as a
+    # native Windows MySQL install. Only takes effect on first start.
+    command: --lower-case-table-names=1 --character-set-server=utf8mb4 --collation-server=utf8mb4_0900_ai_ci
+    ports:
+      - "3306:3306"
+    volumes:
+      - hrs_mysql_data:/var/lib/mysql
+      # Any .sql files in ./initdb run once, the first time the database is created
+      - ./initdb:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-uroot", "-p${MYSQL_ROOT_PASSWORD:-hrs_root_pw}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+
+  # Optional browser-based admin tool at http://localhost:8080
+  adminer:
+    image: adminer:latest
+    container_name: hrs-adminer
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      ADMINER_DEFAULT_SERVER: db
+    ports:
+      - "8080:8080"
+
+volumes:
+  hrs_mysql_data:
